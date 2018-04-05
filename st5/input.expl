@@ -1,0 +1,30 @@
+decl
+	int a;
+	int how(int a, str s);
+	str s;
+enddecl
+
+int how(int a, str s){
+	decl
+		int i,J;
+	enddecl
+	
+	begin
+		i=0;
+		J=1;
+		a=5;
+		return 1;
+	end
+}
+
+int main(){
+	decl
+		int local;
+	enddecl
+	
+	begin
+	s="hi";
+	write(s);
+	return 0;
+	end
+}

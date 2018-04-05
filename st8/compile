@@ -1,0 +1,4 @@
+#!/bin/bash
+
+./test $1.expl $1.objt
+./label $1.objt $1.xsm

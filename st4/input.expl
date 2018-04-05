@@ -1,0 +1,11 @@
+begin
+decl
+	int a[2][2],b1;
+	 str c;
+enddecl
+
+b1=10;
+read(a[1][1]);
+write(a[1][b1]);
+
+end

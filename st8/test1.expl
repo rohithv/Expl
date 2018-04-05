@@ -1,0 +1,49 @@
+class
+	A{
+	decl
+		int i;
+		int f1(int a);
+	enddecl
+	
+	int f1(int a){
+		begin
+			write(a);
+			return 1;
+		end
+	}
+	
+	}
+	
+	B extends A{
+	decl
+		int j;
+		int f1(int a, int b);
+	enddecl
+	
+	int f1(int a, int b){
+		begin
+			self.j=a*b;
+			write(self.j);
+			return 2;
+		end
+	}
+	}
+endclass
+
+decl
+	A obj1;
+	B obj2;
+enddecl
+
+int main(){
+	decl
+		int x,y,z;
+	enddecl
+	begin
+		x=initialize();
+		obj2=new(B);
+		y=obj2.f1(2);
+		y=obj2.f1(2, 3);
+		return 1;
+	end
+}

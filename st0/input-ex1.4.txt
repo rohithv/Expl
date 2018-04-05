@@ -1,0 +1,8 @@
+// a comment
+sidvi // comment
+/* comm */
+df
+/*comm1
+gh
+
+jukj*/

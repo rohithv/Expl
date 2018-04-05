@@ -1,0 +1,11 @@
+Execution instructions
+-----------------------
+
+./st2 <inputfile> <outputfile>
+./st2 <outputfile> //input from console
+./st2 // input from console and output to console
+
+-----------------------
+
+./ex1 <inputfile> //output to console
+./ex1 //input from console and output to console

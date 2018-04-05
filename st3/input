@@ -1,0 +1,14 @@
+begin
+read(a);
+b=0;
+repeat
+	if(b==6) then
+		break;
+	endif;
+	b=b+1;
+	if(b==3) then
+		continue;
+	endif;
+	write(b);
+until b>a;
+end

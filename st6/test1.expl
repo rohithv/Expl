@@ -1,0 +1,54 @@
+type
+	rohith {
+		int age;
+		str name;
+		rohith var1;
+		rohith var2;
+	}
+endtype
+
+decl
+	int i,j;
+	rohith p,q;
+	str s;
+	int print(rohith r);
+	rohith input();
+enddecl
+
+int print(rohith r){
+begin
+	write(r.name);
+	write(r.age);
+	return 1;
+end
+}
+
+rohith input(){
+decl
+	rohith r;
+enddecl
+begin
+	r=alloc();
+	r.name="kittu";
+	r.age=21;
+	write(r.age);
+	return r;
+end
+}
+
+int main(){
+decl
+	rohith r;
+	int k;
+enddecl
+
+begin
+	k=initialize();
+	p=alloc();
+	p.name="kich";
+	p.age=20;
+	r=input();
+	k=print(r);
+	return 1;
+end
+}
