@@ -98,7 +98,10 @@ extern int yydebug;
     DELETE = 308,
     NEW = 309,
     EXTENDS = 310,
-    SELF = 311
+    SELF = 311,
+    LET = 312,
+    ENDLET = 313,
+    IN = 314
   };
 #endif
 /* Tokens.  */
@@ -156,6 +159,9 @@ extern int yydebug;
 #define NEW 309
 #define EXTENDS 310
 #define SELF 311
+#define LET 312
+#define ENDLET 313
+#define IN 314
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED

@@ -1,0 +1,35 @@
+
+decl
+	int a,b;
+	int fun();
+enddecl
+
+int fun(){
+	begin
+		write(a);
+		return a;
+	end
+}
+
+int main(){
+	
+	begin
+		a=2;
+		write(a);
+		breakpoint;
+		let(a=3) in
+			breakpoint;
+			write(a);
+			let(a=4) in
+				breakpoint;
+				b=fun();
+				write(a);
+			endlet
+			b=fun();
+		endlet
+		breakpoint;
+		write(a);
+		breakpoint;
+		return a;
+	end
+}

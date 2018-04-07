@@ -72,6 +72,9 @@ endclass {return ENDCLASS;}
 new		{return NEW;}
 delete	{return DELETE;}
 extends {return EXTENDS;}
+let 	{return LET;}
+endlet	{return ENDLET;}
+in 		{return IN;}
 [{}()]	{return *yytext;}
 ,	{return *yytext;}
 [\[\]]	{return *yytext;}

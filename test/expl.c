@@ -14,6 +14,9 @@ Gsymbol *symbol_table=NULL;
 Lsymbol *Lsymbol_table = NULL;
 param *parameter=NULL, *paramlist=NULL;
 FieldList *fieldlist=NULL, *field=NULL;
+Lsymbol *let_list=NULL, *curr_let=NULL;;
+int global_var=4095, let_entries=0;
+tnode *asgn=NULL;
 
 reg_index codeGen(tnode *t);
 
@@ -341,6 +344,32 @@ void typecheck(struct tnode *t){
 			}
 			break;
 		}
+		case LETASGN:{
+			Gsymbol *gsym=Lookup(t->left->varname);
+			Lsymbol *let;
+			if(gsym==NULL){
+				fprintf(stderr,"error, %d : Variable %s is not defined\n",line,t->left->varname);
+				exit(1);
+			}
+			t->left->Gentry=gsym;
+			t->left->type=gsym->type;
+			if(gsym->type != TLookup("int") && gsym->type != TLookup("str")){
+				fprintf(stderr,"error, %d : Let expect only integer or string variables\n",line);
+				exit(1);
+			}
+			if(t->left->type != t->right->type){
+				fprintf(stderr,"error, %d : Type mismatch for %s\n",line,t->left->varname);
+				exit(1);
+			}
+			let = (Lsymbol *)malloc(sizeof(Lsymbol));
+			let->name=gsym->name;
+			let->type=gsym->type;
+			let->size=gsym->size;
+			let->binding=gsym->binding-global_var;
+			let->next=let_list;
+			let_list=let;
+			break;
+		}
 		
 	}
 }
@@ -368,6 +397,7 @@ struct tnode* createTree(int val, TypeTable *type, char *c,int nodetype, struct 
 	newnode->tuplefield=NULL;
 	newnode->field=NULL;
 	newnode->ctype=NULL;
+	newnode->letlist=NULL;
 	if(nodetype!=VAR && nodetype!=POINTER)// && nodetype!= ADDR)
 		typecheck(newnode);
 	return newnode;
@@ -404,7 +434,7 @@ void getbinding(reg_index p, tnode *t){
 	}
 }
 
-reg_index getAddr(tnode *t){
+reg_index getwriteAddr(tnode *t){
 	int n=0,factor=1;
 	reg_index p,q,r;
 	if(t==NULL){
@@ -480,6 +510,117 @@ reg_index getAddr(tnode *t){
 	return p;
 }
 
+reg_index getAddr(tnode *t){
+	int n=0,factor=1;
+	reg_index p,q,r;
+	if(t==NULL){
+		printf("Null passed to getAddr\n");
+	}
+	if(t->nodetype == POINTER){ //Pointer type variable.
+		p=getReg();
+		//fprintf(temp,"MOV R%d, %d\n",p,t->Gentry->binding);
+		getbinding(p,t);
+		fprintf(temp,"MOV R%d, [R%d]\n",p,p);
+		return p;
+	}
+	if(t->nodetype == TUPLEFIELD){
+		int b=0;
+		TupleList *list = t->Gentry->tuplelist;
+		while(list!=NULL){
+			if(!strcmp(list->name,t->tuplefield->varname)){
+				break;
+			}
+			list=list->next;
+			b++;
+		}
+		p=getReg();
+		getbinding(p,t);
+		fprintf(temp,"ADD R%d, %d\n",p,b);
+		return p;
+	}
+	if(t->nodetype==FIELD){
+		int addr;
+		tnode *tmp;
+		r=getReg();
+		getbinding(r,t);
+		fprintf(temp,"MOV R%d, [R%d]\n",r,r);
+		tmp=t->field;
+		while(tmp!=NULL){
+			fprintf(temp,"ADD R%d, %d\n",r,tmp->val);
+			if(tmp->field!=NULL)
+				fprintf(temp,"MOV R%d, [R%d]\n",r,r);
+			tmp=tmp->field;
+		}
+		return r;
+	}		
+		
+	if(t->left){
+		p=codeGen(t->left);
+		factor=t->Gentry->cols;
+		n++;
+	}
+	if(t->right){
+		q=codeGen(t->right);
+		n++;
+	}
+	
+	if(n==2){
+		fprintf(temp,"MUL R%d, %d\n",p,factor);
+		fprintf(temp,"ADD R%d, R%d\n",p,q);
+		getbinding(q,t);
+		fprintf(temp,"ADD R%d, R%d\n",p,q);
+		freeReg();
+	}
+	else if(n==1){
+		q=getReg();
+		getbinding(q,t);
+		fprintf(temp,"ADD R%d, R%d\n",p,q);
+		freeReg();
+	}
+	else if(n==0){
+		Lsymbol *let=curr_let;
+		p=getReg();
+		//fprintf(temp,"MOV R%d, %d\n",p,t->Gentry->binding);
+		//getbinding(p,t);
+		while(let!=NULL){
+			if(!strcmp(let->name,t->varname))
+				break;
+			let=let->next;
+		}
+		if(let!=NULL){// case 1: local let scope.
+			fprintf(temp, "MOV R%d, SP\n",p);
+			fprintf(temp, "SUB R%d, %d\n",p,(let->binding)*2);
+			//fprintf(temp, "MOV R%d, [R%d]\n",p,r0);
+		}else if(t->Gentry->binding <4095){ //case 2: Local declaration.
+			fprintf(temp,"MOV R%d, BP\n",p);
+			fprintf(temp,"ADD R%d, %d\n",p,t->Gentry->binding);
+		}
+		else{
+			int global=t->Gentry->binding;
+			int offset= (global-global_var)*2 +1;
+			int r0=getReg();
+			int r1=getReg();
+			int l1=getLabel();
+			int l2=getLabel();
+			fprintf(temp, "MOV R%d, SP\n",r0);
+			fprintf(temp, "SUB R%d, %d\n",r0,offset);
+			fprintf(temp, "MOV R%d, [R%d]\n",r1,r0);
+			fprintf(temp, "JZ R%d, L%d\n",r1,l1);
+			fprintf(temp, "ADD R%d, 1\n",r0);
+			fprintf(temp, "MOV R%d, R%d\n",p,r0);	//Dynamic let scope
+			fprintf(temp, "JMP L%d\n",l2);
+			fprintf(temp, "L%d:\n",l1);
+			fprintf(temp,"MOV R%d, %d\n",p,t->Gentry->binding); //Global declarations.
+			fprintf(temp, "L%d:\n",l2);
+			freeReg();
+			freeReg();
+		}
+	}
+		
+	return p;
+
+}
+
 reg_index codeGen(tnode *t){
 	
 	reg_index p,q,r,s;
@@ -517,8 +658,8 @@ reg_index codeGen(tnode *t){
 		case ASS:{
 			if(t->left->type==TLookup("tuple")){ // For tuple variables
 				r=getReg();
-				p=getAddr(t->left);
-				q=getAddr(t->right);
+				p=getwriteAddr(t->left);
+				q=getwriteAddr(t->right);
 				l=t->left->Gentry->size;
 				m=0;
 				while(m<l){
@@ -539,7 +680,7 @@ reg_index codeGen(tnode *t){
 					ClassTable *cclass=t->right->ctype;
 					int index=cclass->class_index;
 					index=index*8 + 4096;//base address of vfunc table
-					p=getAddr(t->left);
+					p=getwriteAddr(t->left);
 					q=codeGen(t->right);
 					fprintf(temp,"MOV [R%d], R%d\n",p,q);
 					fprintf(temp,"ADD R%d, 1\n",p);
@@ -547,8 +688,8 @@ reg_index codeGen(tnode *t){
 					freeReg();
 					return p;
 				}else{
-					p=getAddr(t->left);
-					q=getAddr(t->right);
+					p=getwriteAddr(t->left);
+					q=getwriteAddr(t->right);
 					r=getReg();
 					fprintf(temp,"MOV R%d, [R%d]\n",r,q);
 					fprintf(temp,"MOV [R%d], R%d\n",p,r);
@@ -562,9 +703,10 @@ reg_index codeGen(tnode *t){
 				}
 			}
 			// Others
-			p=getAddr(t->left);
-			q=codeGen(t->right);
-			fprintf(temp,"MOV [R%d], R%d\n",p,q);
+			//p=getwriteAddr(t->left);
+			p=codeGen(t->right);
+			q=getwriteAddr(t->left);
+			fprintf(temp,"MOV [R%d], R%d\n",q,p);
 			freeReg();
 			return p;
 			break;
@@ -572,7 +714,7 @@ reg_index codeGen(tnode *t){
 		case READOP:{
 			
 			p=getReg();
-			q=getAddr(t->left);
+			q=getwriteAddr(t->left);
 			n=0;
 			while(n<p){
 			    fprintf(temp,"PUSH R%d\n",n);
@@ -841,11 +983,11 @@ reg_index codeGen(tnode *t){
 			tnode *arg;
 			Gsymbol *ptr;
 			p=getReg();
-			l=0;
+			/*l=0;
 			while(l<p){
 				fprintf(temp,"PUSH R%d\n",l);
 				l++;
-			}
+			}*/
 			arg=t->left;
 			while(arg!=NULL){
 				q=codeGen(arg);
@@ -864,22 +1006,29 @@ reg_index codeGen(tnode *t){
 				arg=arg->middle;
 			}
 			freeReg();
-			l=p-1;
+			/*l=p-1;
 			while(l>=0){
 				fprintf(temp,"POP R%d\n",l);
 				l--;
-			}
+			}*/
 			return p;
 			break;
 		}
 		case RET:{
-			int i;
+			int i, count=0;
+			Lsymbol *tmp=NULL;
 			p=codeGen(t->left);
 			q=getReg();
 			fprintf(temp,"MOV R%d, BP\n",q);
 			fprintf(temp,"SUB R%d, 2\n",q);
 			fprintf(temp,"MOV [R%d], R%d\n",q,p);
-			
+			tmp=let_list;
+			while(tmp!=NULL){
+				count=count+(let_entries*2);
+				tmp=tmp->next;
+			}
+			count=count+(let_entries*2);
+			fprintf(temp, "SUB SP, %d\n",count);
 			//pop local variables
 			i=1;
 			while(i<local_binding){
@@ -1091,6 +1240,53 @@ reg_index codeGen(tnode *t){
 			return p;
 			break;
 		}
+		case LETNODE:{
+			Lsymbol *old_let = curr_let;
+			tnode *asgn1=t->left;
+			int pos=1, neg=let_entries*2-1, i;
+			reg_index r0,r1,r2,r3;
+			curr_let = t->letlist;
+			//copying the let block.
+			//copying let block
+			r0=getReg();
+			r1=getReg();
+			r2=getReg();
+			fprintf(temp, "MOV R%d, %d\n",r0,pos);
+			fprintf(temp, "ADD R%d, SP\n",r0);
+			fprintf(temp, "MOV R%d, SP\n",r1);
+			fprintf(temp, "SUB R%d, %d\n",r1,neg);
+			i=2*let_entries;
+			while(i>0){
+				fprintf(temp, "MOV R%d, [R%d]\n",r2,r1);
+				fprintf(temp, "MOV [R%d], R%d\n",r0,r2);
+				fprintf(temp, "ADD R%d, 1\n",r0);
+				fprintf(temp, "ADD R%d, 1\n",r1);
+				i--;
+			}
+			fprintf(temp, "MOV R%d, %d\n",r2,let_entries*2);
+			fprintf(temp, "ADD SP, R%d\n",r2);
+			freeReg();freeReg();freeReg();
+			//setting current variable value in the scope.
+			if(asgn1 == NULL){
+				printf("asgn1 is null\n");
+			}
+			p=codeGen(asgn1->right);
+			q=getReg();
+			fprintf(temp, "MOV R%d, SP\n",q);
+			fprintf(temp, "SUB R%d, %d\n",q,curr_let->binding*2);
+			fprintf(temp, "MOV [R%d], R%d\n",q,p);
+			fprintf(temp, "SUB R%d, 1\n",q);
+			fprintf(temp, "MOV [R%d], 1\n",q);
+			freeReg();
+			freeReg();
+			p=codeGen(t->right);
+			//removing the let block.
+			i=2*let_entries;
+			fprintf(temp, "SUB SP, %d\n",i);
+			curr_let=old_let;
+			return p;
+			break;
+		}
 	}
 	
 	return p;
@@ -1125,10 +1321,12 @@ void createVfuncTable(){
 }
 
 void CodeGenerate(tnode *t, char *fname){
-	int i,l;
+	int i,l, paramcount=0,pos=0,neg=0;
+	param *p=NULL;
 	i=1;
 	if(!strcmp(fname, "main")){
 		l=0;
+		p=NULL;
 	}else if(currclass!=NULL){
 		MemberFuncList *mfunc;
 		mfunc=currclass->vfuncptr;
@@ -1138,9 +1336,11 @@ void CodeGenerate(tnode *t, char *fname){
 			mfunc=mfunc->next;
 		}
 		l=mfunc->flabel;
+		p=mfunc->paramlist;
 	}
 	else{
 		l=(Lookup(fname))->flabel;
+		p=(Lookup(fname))->paramlist;
 	}
 	fprintf(temp,"F%d:\n",l);
 	fprintf(temp,"PUSH BP\n");
@@ -1148,6 +1348,42 @@ void CodeGenerate(tnode *t, char *fname){
 	while(i<local_binding){
 		fprintf(temp,"PUSH R0\n");
 		i++;
+	}
+	if(l!=0){	// Other than main function.
+		while(p!=NULL){
+			paramcount++;
+			p=p->next;
+		}
+		if(currclass!=NULL){
+			paramcount=paramcount+2;
+		}
+		pos=1;
+		neg= (2+paramcount)+let_entries*2 ;
+		
+		//copying let block
+		fprintf(temp, "MOV R0, %d\n",pos);
+		fprintf(temp, "ADD R0, SP\n");
+		fprintf(temp, "MOV R1, BP\n");
+		fprintf(temp, "SUB R1, %d\n",neg);
+		fprintf(temp, "MOV R3, 1\n");
+		i=2*let_entries;
+		while(i>0){
+			fprintf(temp, "MOV R2, [R1]\n");
+			fprintf(temp, "MOV [R0], R2\n");
+			fprintf(temp, "ADD R0, 1\n");
+			fprintf(temp, "ADD R1, 1\n");
+			i--;
+		}
+		fprintf(temp, "MOV R3, %d\n",let_entries*2);
+		fprintf(temp, "ADD SP, R3\n");
+	} else if(l==0){ //Main function.
+		i=let_entries;
+		fprintf(temp, "MOV R0, 0\n");
+		while(i>0){
+			fprintf(temp, "PUSH R0\n");//valid bit
+			fprintf(temp, "PUSH R1\n");//value
+			i--;
+		}
 	}
 	i=codeGen(t);
 	freeReg();

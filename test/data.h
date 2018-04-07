@@ -50,6 +50,9 @@
 #define NEWNODE 41
 #define CLASSNODE 42
 #define FIELDFUNCTION 43
+#define LETNODE 44
+#define LETASGN 45
+
 
 //macros used in codegen for loop type
 #define NOLOOP 0
@@ -117,6 +120,7 @@ typedef struct tnode{
 	int nodetype;
 	struct Gsymbol *Gentry;
 	struct tnode *left, *middle, *right, *tuplefield, *field;
+	struct Lsymbol *letlist;
 }tnode;
 
 typedef struct Gsymbol {

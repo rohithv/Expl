@@ -1,0 +1,46 @@
+decl
+	int x,y;
+	int f(int p, int q);
+enddecl
+
+int f(int p, int q){
+	decl
+		int i;
+	enddecl
+	
+	begin
+		if((p>0) AND (q>0)) then
+			i=f(p-1, q-1);
+		else
+			x=x+100;
+			y=200;
+			write(x);
+			write(y);
+		endif;
+		return (x+y);
+	end
+}
+
+int main(){
+	decl
+		int i;
+	enddecl
+	
+	begin
+		x=0;
+		y=1;
+		let(x=2) in
+			x=10;
+			let(y=3) in
+				y=20;
+				y=f(x,y);
+				write(y);
+			endlet
+			write(y);
+		endlet
+		write(x);
+		write(y);
+		return 0;
+	end
+
+}

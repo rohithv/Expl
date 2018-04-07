@@ -16,7 +16,7 @@ MemberFuncList *checkMemberFunc(ClassTable *, char *, tnode*);
 
 %}
 
-%token NUM TXT PLUS MINUS MUL DIV ASSIGN WRITE READ ID BEGINTK END EQ NE LT GT LE GE IF THEN ELSE ENDIF WHILE DO ENDWHILE BREAKTK CONTINUETK BRKPTK REPEAT UNTIL DECL ENDDECL INT STR ADDRTK MAINTK RETURN ANDTK ORTK NOTTK TUPLE TYPETK ENDTYPE NULLTK ALLOC INITIALIZE FREE MOD CLASS ENDCLASS DELETE NEW EXTENDS SELF 
+%token NUM TXT PLUS MINUS MUL DIV ASSIGN WRITE READ ID BEGINTK END EQ NE LT GT LE GE IF THEN ELSE ENDIF WHILE DO ENDWHILE BREAKTK CONTINUETK BRKPTK REPEAT UNTIL DECL ENDDECL INT STR ADDRTK MAINTK RETURN ANDTK ORTK NOTTK TUPLE TYPETK ENDTYPE NULLTK ALLOC INITIALIZE FREE MOD CLASS ENDCLASS DELETE NEW EXTENDS SELF LET ENDLET IN;
 %left PLUS MINUS
 %left MUL DIV MOD
 %left LT GT LE GE EQ NE
@@ -29,8 +29,8 @@ Program : TypeDefBlock ClassDefBlock GDeclBlock FDefBlock MainBlock
 		| TypeDefBlock ClassDefBlock MainBlock
 		;
 
-ClassDefBlock : CLASS ClassDefList ENDCLASS { sp++; }
-				|  { /*Empty*/ }
+ClassDefBlock : CLASS ClassDefList ENDCLASS { sp++; global_var=sp; }
+				|  { /*Empty*/sp++;global_var=sp; }
 				;
 				
 ClassDefList : ClassDefList ClassDef { /*Empty*/ }
@@ -79,7 +79,7 @@ FieldDeclList : FieldDeclList FieldDecl { addfield(); }
 				;
 FieldDecl : Type ID ';' { field=(FieldList *)malloc(sizeof(FieldList)); field->name=$2->varname; field->type=$1->type; field->next=NULL; };
 
-GDeclBlock : DECL GDeclList ENDDECL { print_symbol_table(); }
+GDeclBlock : DECL GDeclList ENDDECL { print_symbol_table(); let_entries = sp-global_var;}
 			| DECL ENDDECL { /* No Action */ }
 			;
 			
@@ -174,7 +174,15 @@ Stmt : 	InputStmt 	{$$=$1;}
 	| DoWhileStmt	{$$=$1;}
 	| UntilStmt 	{$$=$1;}
 	| PlainStmt 	{$$=$1;}
+	| LetStmt 		{$$=$1;}
 	;
+
+LetStmt : LET '(' LetAsgn ')'  IN Slist ENDLET {$$=createTree(0,TLookup("void"), NULL, LETNODE, $3, NULL, $6); $$->letlist=let_list;
+														if(let_list!=NULL){	let_list=let_list->next; } asgn=NULL;
+												}
+														
+		;
+LetAsgn : ID ASSIGN expr {  $$ = createTree(0,TLookup("void"),NULL, LETASGN, $1,NULL,$3);}
 
 InputStmt : READ '(' Iden ')' ';' {typecheck($3); $$=createTree(0,NULL,NULL,READOP,$3,NULL,NULL);}	
 			;
